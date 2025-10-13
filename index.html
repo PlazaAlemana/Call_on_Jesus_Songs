@@ -353,6 +353,8 @@
         ];
 
         let draggedIndex = null;
+        let touchStartY = 0;
+        let touchElement = null;
 
         function changeFontSize(index, change, event) {
             event.stopPropagation();
@@ -368,6 +370,7 @@
             });
         }
 
+        // Desktop drag handlers
         function handleDragStart(e, index) {
             draggedIndex = index;
             e.currentTarget.classList.add('dragging');
@@ -394,6 +397,65 @@
             renderSongs();
         }
 
+        // Touch handlers for mobile
+        function handleTouchStart(e, index) {
+            // Only start drag if touching the header area
+            if (!e.target.closest('.song-header')) return;
+            
+            draggedIndex = index;
+            touchStartY = e.touches[0].clientY;
+            touchElement = e.currentTarget;
+            touchElement.classList.add('dragging');
+            e.currentTarget.style.transition = 'none';
+        }
+
+        function handleTouchMove(e) {
+            if (draggedIndex === null || !touchElement) return;
+            
+            e.preventDefault();
+            const touchY = e.touches[0].clientY;
+            const deltaY = touchY - touchStartY;
+            
+            touchElement.style.transform = `translateY(${deltaY}px)`;
+            
+            // Find the element we're hovering over
+            const cards = document.querySelectorAll('.song-card');
+            cards.forEach((card, index) => {
+                if (card === touchElement) return;
+                
+                const rect = card.getBoundingClientRect();
+                const cardMiddle = rect.top + rect.height / 2;
+                
+                if (touchY > rect.top && touchY < rect.bottom) {
+                    if (touchY < cardMiddle && index < draggedIndex) {
+                        // Move dragged item before this card
+                        const draggedSong = songsData[draggedIndex];
+                        songsData.splice(draggedIndex, 1);
+                        songsData.splice(index, 0, draggedSong);
+                        draggedIndex = index;
+                        renderSongs();
+                    } else if (touchY > cardMiddle && index > draggedIndex) {
+                        // Move dragged item after this card
+                        const draggedSong = songsData[draggedIndex];
+                        songsData.splice(draggedIndex, 1);
+                        songsData.splice(index, 0, draggedSong);
+                        draggedIndex = index;
+                        renderSongs();
+                    }
+                }
+            });
+        }
+
+        function handleTouchEnd(e) {
+            if (touchElement) {
+                touchElement.classList.remove('dragging');
+                touchElement.style.transform = '';
+                touchElement.style.transition = '';
+            }
+            touchElement = null;
+            draggedIndex = null;
+        }
+
         function toggleCard(cardElement, event) {
             // Don't toggle if clicking on control buttons
             if (event.target.closest('.control-btn')) {
@@ -407,10 +469,16 @@
             card.className = 'song-card';
             card.draggable = true;
             
+            // Desktop drag events
             card.addEventListener('dragstart', (e) => handleDragStart(e, index));
             card.addEventListener('dragend', handleDragEnd);
             card.addEventListener('dragover', handleDragOver);
             card.addEventListener('drop', (e) => handleDrop(e, index));
+
+            // Touch events for mobile
+            card.addEventListener('touchstart', (e) => handleTouchStart(e, index), { passive: false });
+            card.addEventListener('touchmove', handleTouchMove, { passive: false });
+            card.addEventListener('touchend', handleTouchEnd);
 
             const header = document.createElement('div');
             header.className = 'song-header';
